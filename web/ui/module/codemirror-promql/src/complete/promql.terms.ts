@@ -48,6 +48,12 @@ export const atModifierTerms = [
 
 export const functionIdentifierTerms = [
   {
+    label: 'wasm',
+    detail: 'function',
+    info: 'Invoke wasm function',
+    type: 'function',
+  },
+  {
     label: 'abs',
     detail: 'function',
     info: 'Return absolute values of input series',

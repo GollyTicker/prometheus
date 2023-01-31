@@ -81,6 +81,7 @@ import {
   Time,
   Timestamp,
   Vector,
+  Wasm,
   Year,
 } from '@prometheus-io/lezer-promql';
 
@@ -102,6 +103,12 @@ export interface PromQLFunction {
 // promqlFunctions is a list of all functions supported by PromQL, including their types.
 // Based on https://github.com/prometheus/prometheus/blob/master/promql/parser/functions.go#L26
 const promqlFunctions: { [key: number]: PromQLFunction } = {
+  [Wasm]: {
+    name: 'wasm',
+    argTypes: [ValueType.string, ValueType.vector],
+    variadic: 0,
+    returnType: ValueType.vector,
+  },
   [Abs]: {
     name: 'abs',
     argTypes: [ValueType.vector],

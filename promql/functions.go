@@ -1233,8 +1233,21 @@ func funcYear(vals []parser.Value, args parser.Expressions, enh *EvalNodeHelper)
 	})
 }
 
+// === wasm(string wasm-function-name, Vector parser.ValueTypeVector) Vector ===
+func funcWasm(vals []parser.Value, args parser.Expressions, enh *EvalNodeHelper) Vector {
+	name := stringFromArg(args[0])
+	inVec := vals[1].(Vector)
+	fmt.Printf("arg 0: %s\n", name)
+	fmt.Printf("value 1: %s of %s\n", vals[1], vals[1].Type())
+
+	fmt.Printf("Invoked wasm function %s\n", name)
+
+	return simpleFunc([]parser.Value{inVec}, enh, math.Abs)
+}
+
 // FunctionCalls is a list of all functions supported by PromQL, including their types.
 var FunctionCalls = map[string]FunctionCall{
+	"wasm":               funcWasm,
 	"abs":                funcAbs,
 	"absent":             funcAbsent,
 	"absent_over_time":   funcAbsentOverTime,

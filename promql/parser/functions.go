@@ -24,6 +24,11 @@ type Function struct {
 
 // Functions is a list of all functions supported by PromQL, including their types.
 var Functions = map[string]*Function{
+	"wasm": {
+		Name:       "wasm",
+		ArgTypes:   []ValueType{ValueTypeString, ValueTypeVector},
+		ReturnType: ValueTypeVector,
+	},
 	"abs": {
 		Name:       "abs",
 		ArgTypes:   []ValueType{ValueTypeVector},
