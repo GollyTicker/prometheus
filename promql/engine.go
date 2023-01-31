@@ -194,6 +194,11 @@ func (q *query) Close() {
 
 // Exec implements the Query interface.
 func (q *query) Exec(ctx context.Context) *Result {
+	err := EnsureWasmSetup()
+	if err != nil {
+		panic(err)
+	}
+
 	if span := trace.SpanFromContext(ctx); span != nil {
 		span.SetAttributes(attribute.String(queryTag, q.stmt.String()))
 	}
