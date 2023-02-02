@@ -1,0 +1,14 @@
+use wasm_bindgen::prelude::*;
+
+#[wasm_bindgen]
+// This actually references the external javascript alert function.
+extern {
+    #[wasm_bindgen(js_namespace = console)]
+    pub fn log(s: &str);
+}
+
+#[wasm_bindgen]
+// We want this function to be accessible from outside.
+pub fn greet(name: &str) {
+    log(&format!("Hello, {}!", name));
+}

@@ -3,13 +3,63 @@
   <head>
     <meta charset="utf-8" />
     <title>hello-wasm example</title>
+    <link rel="icon" href="data:,">
   </head>
   <body>
+  </body>
+    <!-- Based on:
+    https://wasmbyexample.dev/examples/webassembly-linear-memory/webassembly-linear-memory.rust.en-us.html
+    -->
     <script type="module">
-      import init, { greet } from "./pkg/array.js";
-      init().then(() => {
-        greet("WebAssembly");
-      });
+      async function runWasm() {
+        // Init
+        const url = new URL("./pkg/array_bg.wasm", import.meta.url);
+
+        // Imports
+        const imports = { wbg: {} };
+
+        const fetched = await fetch(url);
+
+        // Init Host-managed Memory
+        // nothing to do.
+
+        // Load
+        let instansiated;
+        if (typeof WebAssembly.instantiateStreaming === "function") {
+          instansiated = await WebAssembly.instantiateStreaming(fetched, imports);
+        } else {
+          const bytes = await fetched.arrayBuffer();
+          instansiated = await WebAssembly.instantiate(bytes, imports);
+        }
+
+        console.log("Instance:", instansiated);
+
+        // Access Exports
+        const {instance, module} = instansiated;
+        const wasm = instance.exports;
+
+        // write in wasm, read in JS
+        console.log("1 writing");
+        wasm.store_value_in_wasm_memory_buffer(120);
+
+        const wasmMemory = new Uint8Array(wasm.memory.buffer);
+        console.log("wasmMemory:", wasmMemory,"length:",wasmMemory.length);
+
+        const bufferPtr = wasm.get_wasm_memory_buffer_ptr();
+        console.log("buffer ptr:", bufferPtr);
+
+        const readFromHost = wasmMemory[bufferPtr + 0];
+        console.log("read from host:", readFromHost);
+
+        // write in JS, read in wasm
+        console.log("writing to host memory.");
+        wasmMemory[bufferPtr + 0] = 43;
+
+        const readFromWasm = wasm.read_wasm_memory_buffer();
+        console.log("Read from wasm:", readFromWasm);
+      }
+
+      runWasm();
     </script>
   </body>
 </html>
