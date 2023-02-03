@@ -17,6 +17,8 @@ var wasmEngine *wasmtime.Engine
 var wasmStore *wasmtime.Store
 var wasmInstances = map[string]*wasmtime.Instance{}
 
+const debug = false
+
 type WasmInputType int32
 
 const (
@@ -105,10 +107,14 @@ func wasmCall(instanceName string, funcName string, args ...interface{}) interfa
 // Main
 
 func RunWasmFunctionInPromQL(wasmName string, inVec Vector) Vector {
-	fmt.Printf("vector: %s of length %d\n", len(inVec))
+	if debug {
+		fmt.Printf("Input vector: %s of length %d\n", len(inVec))
+	}
 
 	wasmInstance := wasmInstances[wasmName]
-	fmt.Printf("Instance ready: %s\n", wasmInstance)
+	if debug {
+		fmt.Printf("Instance ready: %s\n", wasmInstance)
+	}
 
 	userType := wasmCall(wasmName, "user_level_type").(int32)
 	if userType != 8 {
@@ -116,24 +122,28 @@ func RunWasmFunctionInPromQL(wasmName string, inVec Vector) Vector {
 	}
 	var typeSize int32 = 8
 
-	fmt.Printf("Setting array length to match input vector length %d\n", len(inVec))
+	if debug {
+		fmt.Printf("Setting array length to match input vector length %d\n", len(inVec))
+	}
+
 	wasmCall(wasmName, "resize", len(inVec))
 	length := int(wasmCall(wasmName, "length").(int32))
 	if length != len(inVec) {
 		panic(fmt.Errorf("Resize didn't work!"))
 	}
 
-	fmt.Println("Accessing wasm memory from host-side")
+	if debug {
+		fmt.Println("Accessing wasm memory from host-side")
+	}
 	rawMemory := wasmInstance.GetExport(wasmStore, "memory").Memory().UnsafeData(wasmStore)
-
 	ptr := wasmCall(wasmName, "get_wasm_memory_buffer_ptr").(int32)
-	fmt.Printf("ptr: %d\n", ptr)
 
+	// Processing input
+	// Point.T is timestamp int64
+	// Point.V is value float64
 	if inVec[0].Point.H != nil { // se docs of Point
 		panic("Historgrams not supported yet")
 	}
-	// Point.T is timestamp int64
-	// Point.V is value float64
 
 	// ====================================================
 	/*
@@ -161,7 +171,9 @@ func RunWasmFunctionInPromQL(wasmName string, inVec Vector) Vector {
 
 	// printBufferAsUserTypedArray()
 
-	fmt.Println("Copy data to wasm memory.")
+	if debug {
+		fmt.Println("Copy data to wasm memory.")
+	}
 	for i := 0; i < length; i++ {
 		// int32/uint32 conversions can be omitted when using u32
 		x := int64(inVec[i].Point.V) // <-- import happens here
@@ -175,11 +187,15 @@ func RunWasmFunctionInPromQL(wasmName string, inVec Vector) Vector {
 	// printBufferAsUserTypedArray()
 
 	// apply work
-	fmt.Println("Apply work.")
+	if debug {
+		fmt.Println("Apply work.")
+	}
 	wasmCall(wasmName, "apply")
 
-	fmt.Println("Read results:")
-	printBufferAsUserTypedArray()
+	if debug {
+		fmt.Println("Results:")
+		printBufferAsUserTypedArray()
+	}
 
 	// modify input vector inVec to return it back. I hope this is okay...!
 	for i := 0; i < length; i++ {

@@ -9,7 +9,7 @@ const USER_TYPE_SIZE: usize = 8; // number of bytes used by the user-type. e.g. 
 // TODO. How do we decide upfront, how large this memory should be?
 // We cannot know this in advance. Should we pre-allocate?
 // Or should we rather have the host do the allocation and wasm just works on the data?
-const MAX_LENGTH: usize = 2048; // used for allocation
+const MAX_LENGTH: usize = 512; // used for allocation
 const MAX_BUFFER_SIZE: usize = USER_TYPE_SIZE * MAX_LENGTH; // 1x i32 = 4x u8 = 4x byte
 
 // This memory is allocated inside WASM - and the host

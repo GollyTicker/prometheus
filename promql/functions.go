@@ -1239,19 +1239,19 @@ func funcYear(vals []parser.Value, args parser.Expressions, enh *EvalNodeHelper)
 
 // === wasm(string wasm-function-name, Vector parser.ValueTypeVector) Vector ===
 func funcWasm(vals []parser.Value, args parser.Expressions, enh *EvalNodeHelper) Vector {
+
 	// todo. it would be interesting to next aggregate properly trough time and not have each timestamp evaluated separately.
+	// I've already prepared a bit. We should create a new "wasmr" function with the matrix type.
+
 	name := stringFromArg(args[0])
 	inVec := vals[1].(Vector)
-	fmt.Printf("arg 0: %s\n", name)
-	fmt.Printf("value 1: %s of %s\n", vals[1], vals[1].Type())
+	// fmt.Printf("value 1: %s of %s\n", vals[1], vals[1].Type())
 
-	fmt.Printf("Invoking wasm function %s\n", name)
+	// fmt.Printf("Invoking wasm function %s\n", name)
 
 	outVec := RunWasmFunctionInPromQL(name, inVec)
 
-	fmt.Println("Called function")
-
-	fmt.Printf("returned: %v\n", outVec)
+	// fmt.Println("Called function.")
 
 	return outVec
 }
