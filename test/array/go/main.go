@@ -4,9 +4,8 @@ package main
 // $ go run main.go
 
 import (
+	"encoding/binary"
 	"fmt"
-	"log"
-	"runtime"
 
 	"github.com/bytecodealliance/wasmtime-go"
 )
@@ -23,145 +22,81 @@ func main() {
 		panic(err)
 	}
 
+	wasmCall := func(name string, args ...interface{}) interface{} {
+		res, err := instance.GetFunc(store, name).Call(store, args...)
+		if err != nil {
+			panic(err)
+		}
+		return res
+	}
+
 	fmt.Printf("instance ready: %s\n", instance)
 
-	fmt.Println("writing to wasm memory")
-	store_value := instance.GetFunc(store, "store_value_in_wasm_memory_buffer")
-	_, err = store_value.Call(store, 120)
-	if err != nil {
-		panic(err)
-	}
+	// fmt.Println("writing to wasm memory")
+	// wasmCall("store_value_in_wasm_memory_buffer", 120)
 
 	fmt.Println("Accessing wasm memory from host-side")
 	wasmMemory := instance.GetExport(store, "memory").Memory()
 	rawMemory := wasmMemory.UnsafeData(store)
+	// memTypeId := wasmCall("get_wasm_memory_buffer_type")
+	// zodo. how to we get to know how wasm-time works with the linear memory and the serialisation?
+	// ====================== NOTE: USING SIGNED INTEGERS IS NASTY. WE SHOULD MANUALLY
+	// ====================== TAKE CARE OF SERIALISATION/DESERIALISATION ON BOTH SIDES FOR NOW.
+	// It's nasty, because somewhere wasmtime choses how the i32 in rust-wasm is represented in the rawMemory array.
+	// We don't know that, and hence it's difficult to read that correctly.
+	// In the bottom approach I still had to reverse engineer, that LittleEndian is used...
+	// It tursn out, that the WASM standard specifies LittleEndianness:
+	// https://webassembly.github.io/spec/core/syntax/instructions.html#syntax-instr-memory
 	fmt.Printf("wasmMemory: %s\n", wasmMemory)
 
-	get_ptr := instance.GetFunc(store, "get_wasm_memory_buffer_ptr")
-	ptr, err := get_ptr.Call(store)
-	if err != nil {
-		panic(err)
-	}
-	offset := ptr.(int32)
-	fmt.Printf("ptr: %s\n", offset)
+	ptr := wasmCall("get_wasm_memory_buffer_ptr").(int32)
+	fmt.Printf("ptr: %s\n", ptr)
 
-	fmt.Println("Reading wasm memory from host side")
-	fmt.Printf("len: %s\n", len(rawMemory))
-	fmt.Printf("head - expecting 120: %s\n", rawMemory[offset+0])
+	// fmt.Println("Reading wasm memory from host side")
+	// fmt.Printf("len: %s\n", len(rawMemory))
+	// fmt.Printf("head - expecting 120: %s\n", rawMemory[ptr+0])
 
-	fmt.Println("Write in Go, read from wasm")
-	rawMemory[offset+0] = 43
+	// fmt.Println("Write in Go, read from wasm")
+	// rawMemory[ptr+0] = 43
 
-	fmt.Println("Reading in wasm")
-	res, err := instance.GetFunc(store, "read_wasm_memory_buffer").Call(store)
-	if err != nil {
-		panic(err)
-	}
+	// fmt.Println("Reading in wasm")
+	// res := wasmCall("read_wasm_memory_buffer")
 
-	fmt.Printf("res - expecting 43: %s\n", res)
+	// fmt.Printf("res - expecting 43: %s\n", res)
 
-	return
+	fmt.Println("-----------------------------")
+	length := int(wasmCall("length").(int32))
 
-	// ======================================================
-	// ======================================================
-	// stuff from another internet tutorial
-
-	// Load up our exports from the instance
-	memory := instance.GetExport(store, "memory").Memory()
-	getWasmMemoryBufferPointer := instance.GetFunc(store, "getWasmMemoryBufferPointer")
-	fmt.Printf("getWasmMemoryBufferPointer: %s", getWasmMemoryBufferPointer.Type(store))
-
-	sizeFn := instance.GetFunc(store, "size")
-	loadFn := instance.GetFunc(store, "load")
-	storeFn := instance.GetFunc(store, "store")
-
-	fmt.Printf("Memory of size %d\n", memory.Size(store))
-
-	fmt.Printf("function loadfn of size %d\n", memory.Size(store))
-
-	// some helper functions we'll use below
-	call32 := func(f *wasmtime.Func, args ...interface{}) int32 {
-		ret, err := f.Call(store, args...)
-		if err != nil {
-			log.Fatal(err)
+	printBufferAsInt32Array := func() {
+		for i := 0; i < length; i++ {
+			// WE NEED TO TAKE CARE. 4xBYTE = 1x INT32
+			ia := ptr + int32(i*4)
+			iz := ptr + int32(i*4) + 4
+			slc := rawMemory[ia:iz]
+			x := binary.LittleEndian.Uint32(slc) // How to avoid this explicit endianness here?
+			fmt.Printf("%d = %d from %v | %d to %d\n", i, x, slc, ia, iz)
 		}
-		return ret.(int32)
-	}
-	call := func(f *wasmtime.Func, args ...interface{}) {
-		_, err := f.Call(store, args...)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-	assertTraps := func(f *wasmtime.Func, args ...interface{}) {
-		_, err := f.Call(store, args...)
-		_, ok := err.(*wasmtime.Trap)
-		if !ok {
-			log.Fatal("expected a trap")
-		}
-	}
-	assert := func(b bool) {
-		if !b {
-			log.Fatal("assertion failed")
-		}
+		fmt.Println("")
 	}
 
-	// Check the initial memory sizes/contents
-	assert(memory.Size(store) == 2)
-	assert(memory.DataSize(store) == 0x20000)
-	buf := memory.UnsafeData(store)
+	// generate some data
+	for i := 0; i < length; i++ {
+		x := uint32(i % 5)
+		// WE NEED TO TAKE CARE. 4xBYTE = 1x INT32
+		ia := ptr + int32(i*4)
+		iz := ptr + int32(i*4) + 4
+		slc := rawMemory[ia:iz]
+		binary.LittleEndian.PutUint32(slc, x) // How to avoid this explicit endianness here?
+	}
 
-	assert(buf[0] == 0)
-	assert(buf[0x1000] == 1)
-	assert(buf[0x1003] == 4)
+	printBufferAsInt32Array()
 
-	assert(call32(sizeFn) == 2)
-	assert(call32(loadFn, 0) == 0)
-	assert(call32(loadFn, 0x1000) == 1)
-	assert(call32(loadFn, 0x1003) == 4)
-	assert(call32(loadFn, 0x1ffff) == 0)
-	assertTraps(loadFn, 0x20000)
+	// fmt.Println("Set some data.")
 
-	// We can mutate memory as well
-	buf[0x1003] = 5
-	call(storeFn, 0x1002, 6)
-	assertTraps(storeFn, 0x20000, 0)
+	// apply work
+	// fmt.Println("Apply work.")
+	wasmCall("apply")
 
-	assert(buf[0x1002] == 6)
-	assert(buf[0x1003] == 5)
-	assert(call32(loadFn, 0x1002) == 6)
-	assert(call32(loadFn, 0x1003) == 5)
-
-	// And like wasm instructions, we can grow memory
-	_, err = memory.Grow(store, 1)
-	assert(err == nil)
-	assert(memory.Size(store) == 3)
-	assert(memory.DataSize(store) == 0x30000)
-
-	assert(call32(loadFn, 0x20000) == 0)
-	call(storeFn, 0x20000, 0)
-	assertTraps(loadFn, 0x30000)
-	assertTraps(storeFn, 0x30000, 0)
-
-	// Memory can fail to grow
-	_, err = memory.Grow(store, 1)
-	assert(err != nil)
-	_, err = memory.Grow(store, 0)
-	assert(err == nil)
-
-	// Ensure that `memory` lives long enough to cover all our usages of
-	// using its internal buffer we read from `UnsafeData()`
-	runtime.KeepAlive(memory)
-
-	// Finally we can also create standalone memories to get imported by
-	// wasm modules too.
-	memorytype := wasmtime.NewMemoryType(5, true, 5)
-	memory2, err := wasmtime.NewMemory(store, memorytype)
-	assert(err == nil)
-	assert(memory2.Size(store) == 5)
-	_, err = memory2.Grow(store, 1)
-	assert(err != nil)
-	_, err = memory2.Grow(store, 0)
-	assert(err == nil)
-
+	// fmt.Println("Read results:")
+	printBufferAsInt32Array()
 }
