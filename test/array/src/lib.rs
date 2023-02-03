@@ -3,8 +3,8 @@ use std::convert::TryInto;
 use wasm_bindgen::prelude::*;
 
 // USING USER TYPE: i32
-const LENGTH: usize = 10;
-const USER_TYPE_SIZE: usize = 4;
+const LENGTH: usize = 32;
+const USER_TYPE_SIZE: usize = 8;
 const WASM_MEMORY_BUFFER_SIZE: usize = USER_TYPE_SIZE * LENGTH; // 1x i32 = 4x u8 = 4x byte
 
 // This memory is allocated inside WASM - and the host
@@ -44,7 +44,7 @@ pub fn user_level_type() -> i32 {
     // 6 = i16
     // 7 = i32
     // 8 = i64
-    return 7;
+    return 8;
 }
 
 // Main worker function
@@ -57,9 +57,9 @@ pub fn apply() {
             let ia: usize = i * USER_TYPE_SIZE;
             let iz: usize = i * USER_TYPE_SIZE + USER_TYPE_SIZE;
             let bytes: [u8; USER_TYPE_SIZE] = WASM_MEMORY_BUFFER[ia..iz].try_into().unwrap();
-            let x = i32::from_le_bytes(bytes); // WASM Standard specifies litte-endian
+            let x = i64::from_le_bytes(bytes); // WASM Standard specifies litte-endian
 
-            let res: i32 = -x * x; // <--- actual work!
+            let res = -x / 2; // <--- actual work!
 
             // write user-evel-type as byte-array
             let res_bytes: [u8; USER_TYPE_SIZE] = res.to_le_bytes();

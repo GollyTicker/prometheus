@@ -79,8 +79,8 @@ func main() {
 		// int32/uint32 conversions can be omitted when using u32
 		x := int32(i % 5)
 		// WE NEED TO TAKE CARE. 4xBYTE = 1x INT32
-		ia := ptr + int32(i*4)
-		iz := ptr + int32(i*4) + 4
+		ia := ptr + int32(i)*typeSize
+		iz := ptr + int32(i)*typeSize + typeSize
 		slc := rawMemory[ia:iz]
 		binary.LittleEndian.PutUint32(slc, uint32(x))
 	}

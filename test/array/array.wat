@@ -3,97 +3,38 @@
   (type (;1;) (func))
   (type (;2;) (func (param i32)))
   (func (;0;) (type 1)
-    (local i32)
-    i32.const 1048576
-    i32.const 0
-    i32.const 1048576
-    i32.load
-    local.tee 0
-    local.get 0
-    i32.mul
-    i32.sub
-    i32.store
-    i32.const 1048580
-    i32.const 0
-    i32.const 1048580
-    i32.load
-    local.tee 0
-    local.get 0
-    i32.mul
-    i32.sub
-    i32.store
-    i32.const 1048584
-    i32.const 0
-    i32.const 1048584
-    i32.load
-    local.tee 0
-    local.get 0
-    i32.mul
-    i32.sub
-    i32.store
-    i32.const 1048588
-    i32.const 0
-    i32.const 1048588
-    i32.load
-    local.tee 0
-    local.get 0
-    i32.mul
-    i32.sub
-    i32.store
-    i32.const 1048592
-    i32.const 0
-    i32.const 1048592
-    i32.load
-    local.tee 0
-    local.get 0
-    i32.mul
-    i32.sub
-    i32.store
-    i32.const 1048596
-    i32.const 0
-    i32.const 1048596
-    i32.load
-    local.tee 0
-    local.get 0
-    i32.mul
-    i32.sub
-    i32.store
-    i32.const 1048600
-    i32.const 0
-    i32.const 1048600
-    i32.load
-    local.tee 0
-    local.get 0
-    i32.mul
-    i32.sub
-    i32.store
-    i32.const 1048604
-    i32.const 0
-    i32.const 1048604
-    i32.load
-    local.tee 0
-    local.get 0
-    i32.mul
-    i32.sub
-    i32.store
-    i32.const 1048608
-    i32.const 0
-    i32.const 1048608
-    i32.load
-    local.tee 0
-    local.get 0
-    i32.mul
-    i32.sub
-    i32.store
-    i32.const 1048612
-    i32.const 0
-    i32.const 1048612
-    i32.load
-    local.tee 0
-    local.get 0
-    i32.mul
-    i32.sub
-    i32.store)
+    (local i32 i32)
+    i32.const -256
+    local.set 0
+    loop  ;; label = @1
+      local.get 0
+      i32.const 1048832
+      i32.add
+      local.tee 1
+      i64.const 0
+      local.get 1
+      i64.load align=1
+      i64.sub
+      i64.const 2
+      i64.div_s
+      i64.store align=1
+      local.get 0
+      i32.const 1048840
+      i32.add
+      local.tee 1
+      i64.const 0
+      local.get 1
+      i64.load align=1
+      i64.sub
+      i64.const 2
+      i64.div_s
+      i64.store align=1
+      local.get 0
+      i32.const 16
+      i32.add
+      local.tee 0
+      br_if 0 (;@1;)
+    end)
   (func (;1;) (type 2) (param i32)
     i32.const 1048576
     local.get 0
@@ -102,11 +43,11 @@
     i32.const 1048576
     i32.load8_u)
   (func (;3;) (type 0) (result i32)
-    i32.const 10)
+    i32.const 32)
   (func (;4;) (type 0) (result i32)
     i32.const 1048576)
   (func (;5;) (type 0) (result i32)
-    i32.const 7)
+    i32.const 8)
   (memory (;0;) 17)
   (export "memory" (memory 0))
   (export "length" (func 3))

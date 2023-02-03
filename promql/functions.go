@@ -21,8 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bytecodealliance/wasmtime-go"
-
 	"github.com/grafana/regexp"
 	"github.com/prometheus/common/model"
 
@@ -53,35 +51,6 @@ import (
 //
 // Scalar results should be returned as the value of a sample in a Vector.
 type FunctionCall func(vals []parser.Value, args parser.Expressions, enh *EvalNodeHelper) Vector
-
-var wasmEngine *wasmtime.Engine
-var wasmStore *wasmtime.Store
-var wasmInstances = map[string]*wasmtime.Instance{}
-
-/* Edits by GollyTicker */
-func EnsureWasmSetup() error {
-	fmt.Println("Loading wasm...")
-	wasmEngine = wasmtime.NewEngine()
-	wasmStore = wasmtime.NewStore(wasmEngine)
-
-	// todo. read all wasm files during startup here and load them into the map
-	module, err := wasmtime.NewModuleFromFile(wasmEngine, "test/gcd.wat")
-	if err != nil {
-		return err
-	}
-
-	instance, err := wasmtime.NewInstance(wasmStore, module, []wasmtime.AsExtern{})
-	if err != nil {
-		return err
-	}
-
-	wasmInstances["gcd"] = instance
-	fmt.Println("Wasm instances loaded!")
-
-	return nil
-}
-
-// end
 
 // === time() float64 ===
 func funcTime(vals []parser.Value, args parser.Expressions, enh *EvalNodeHelper) Vector {
@@ -651,6 +620,10 @@ func simpleFunc(vals []parser.Value, enh *EvalNodeHelper, f func(float64) float6
 		})
 	}
 	return enh.Out
+}
+
+func SimpleFunc(vals []parser.Value, enh *EvalNodeHelper, f func(float64) float64) Vector {
+	return simpleFunc(vals, enh, f)
 }
 
 // === abs(Vector parser.ValueTypeVector) Vector ===
@@ -1266,24 +1239,21 @@ func funcYear(vals []parser.Value, args parser.Expressions, enh *EvalNodeHelper)
 
 // === wasm(string wasm-function-name, Vector parser.ValueTypeVector) Vector ===
 func funcWasm(vals []parser.Value, args parser.Expressions, enh *EvalNodeHelper) Vector {
+	// todo. it would be interesting to next aggregate properly trough time and not have each timestamp evaluated separately.
 	name := stringFromArg(args[0])
 	inVec := vals[1].(Vector)
 	fmt.Printf("arg 0: %s\n", name)
 	fmt.Printf("value 1: %s of %s\n", vals[1], vals[1].Type())
 
-	fmt.Printf("Invoked wasm function %s\n", name)
+	fmt.Printf("Invoking wasm function %s\n", name)
 
-	fn := wasmInstances[name].GetExport(wasmStore, "run").Func()
-	val, err := fn.Call(wasmStore, 6, 27)
-	if err != nil {
-		panic(err)
-	}
+	outVec := RunWasmFunctionInPromQL(name, inVec)
+
 	fmt.Println("Called function")
 
-	fmt.Printf("Instance %s exists.\n", wasmInstances[name].GetFunc(wasmStore, "run").Type(wasmStore))
-	fmt.Printf("result = %s\n", val.(int32))
+	fmt.Printf("returned: %v\n", outVec)
 
-	return simpleFunc([]parser.Value{inVec}, enh, math.Abs)
+	return outVec
 }
 
 // FunctionCalls is a list of all functions supported by PromQL, including their types.
