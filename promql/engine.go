@@ -1374,7 +1374,12 @@ func (ev *evaluator) eval(expr parser.Expr) (parser.Value, storage.Warnings) {
 		for i, e := range e.Args {
 			if i != matrixArgIndex {
 				val, ws := ev.eval(e)
+				// vv this does nt seem to make sense. This loop evaluates non-matrix args, so why is this converted to a matrix??
+				// It seems, that the engine doesn't support args of (string, matrix) but only (scalar, matrix)...
+				// The original comment below, where `otherArgs` is used further below says, that only scalar x matrix is allowed.
+				// Indeed. In the original setof PromQL functions a matrix arg only comes together with a scalar arg.
 				otherArgs[i] = val.(Matrix)
+				// decision: I'll just use a scalar to denote the index of the wasm-function to call. No strings here :(
 				otherInArgs[i] = Vector{Sample{}}
 				inArgs[i] = otherInArgs[i]
 				warnings = append(warnings, ws...)

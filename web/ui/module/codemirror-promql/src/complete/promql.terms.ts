@@ -54,6 +54,12 @@ export const functionIdentifierTerms = [
     type: 'function',
   },
   {
+    label: 'wasmr',
+    detail: 'function',
+    info: 'Invoke wasm range function',
+    type: 'function',
+  },
+  {
     label: 'abs',
     detail: 'function',
     info: 'Return absolute values of input series',

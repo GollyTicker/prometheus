@@ -17,6 +17,7 @@ import (
 var wasmEngine *wasmtime.Engine
 var wasmStore *wasmtime.Store
 var wasmInstances = map[string]*wasmtime.Instance{}
+var wasmInstancesNameSorted = []string{}
 
 const debug = false
 
@@ -72,6 +73,8 @@ func loadWasmModuleFromFilePath(name string, filePath string) (err error) {
 	}
 
 	wasmInstances[name] = instance
+	n := len(wasmInstancesNameSorted)
+	wasmInstancesNameSorted = append(wasmInstancesNameSorted, name)
 
 	inputType, err := wasmCallWithError(name, "input_type")
 	wasmInstancesInputType[name] = WasmInputType(inputType.(int32))
@@ -79,7 +82,7 @@ func loadWasmModuleFromFilePath(name string, filePath string) (err error) {
 		return
 	}
 
-	fmt.Printf("Wasm instance %s uses type %d\n", name, wasmInstancesInputType[name])
+	fmt.Printf("Wasm instance %s (n=%d) uses type %d\n", name, n, wasmInstancesInputType[name])
 
 	if inputType == 0 {
 		return fmt.Errorf("wasm Instance: Input type should not be 0 (invalid). Name: " + name)
@@ -107,7 +110,8 @@ func wasmCall(instanceName string, funcName string, args ...interface{}) interfa
 
 // Main
 
-func RunWasmFunctionInPromQL(wasmName string, inVec Vector) Vector {
+// exactly one of inVec and inMat is provided. the other is nil.
+func RunWasmFunctionInPromQL(wasmName string, inVec Vector, inMat Matrix) Vector {
 	if debug {
 		fmt.Printf("Input vector: %s of length %d\n", len(inVec))
 	}
@@ -123,13 +127,34 @@ func RunWasmFunctionInPromQL(wasmName string, inVec Vector) Vector {
 	}
 	var typeSize int32 = 8
 
-	if debug {
-		fmt.Printf("Setting array length to match input vector length %d\n", len(inVec))
+	if wasmInstancesInputType[wasmName] != 2 {
+		panic("Only input type 2 is supported now!")
 	}
 
-	wasmCall(wasmName, "resize", len(inVec))
+	if debug {
+		fmt.Printf("Setting array length to match input vector/matrix length/dimensions\n")
+	}
+
+	/* IF INPUT TYPE ARRAY */
+	// wasmCall(wasmName, "resize", len(inVec))
+	// length := int(wasmCall(wasmName, "length").(int32))
+	// if length != len(inVec) {
+	// 	panic(fmt.Errorf("Resize didn't work!"))
+	// }
+
+	/* IF INPUT TYPE MATRIX */
+	total := inMat.TotalSamples()
+	DIM_0 := inMat.Len()
+	DIM_1 := total / DIM_0
+	if debug {
+		fmt.Printf("Dimensions: %d x %d = %d", DIM_0, DIM_1, total)
+	}
+	if DIM_0*DIM_1 != total {
+		panic("Dimensions doesn't match properly.")
+	}
+	wasmCall(wasmName, "set_dimensions", DIM_0, DIM_1)
 	length := int(wasmCall(wasmName, "length").(int32))
-	if length != len(inVec) {
+	if length != total {
 		panic(fmt.Errorf("Resize didn't work!"))
 	}
 
@@ -142,7 +167,7 @@ func RunWasmFunctionInPromQL(wasmName string, inVec Vector) Vector {
 	// Processing input
 	// Point.T is timestamp int64
 	// Point.V is value float64
-	if inVec[0].Point.H != nil { // se docs of Point
+	if inVec != nil && inVec[0].Point.H != nil { // see docs of Point
 		panic("Historgrams not supported yet")
 	}
 
@@ -168,7 +193,10 @@ func RunWasmFunctionInPromQL(wasmName string, inVec Vector) Vector {
 			// x := int64(binary.LittleEndian.Uint64(slc)) // int32 conversion can be omitted when using u32
 			x := Float64fromBytes(slc)
 
-			fmt.Printf("%d = %s from %v | %d to %d\n", i, x, slc, ia, iz)
+			m := i / DIM_1 // 2d-array logic
+			t := i % DIM_1
+
+			fmt.Printf("[%d][%d] = [%d] = %f from %v | %d to %d\n", m, t, i, x, slc, ia, iz)
 		}
 		fmt.Println("")
 	}
@@ -181,10 +209,14 @@ func RunWasmFunctionInPromQL(wasmName string, inVec Vector) Vector {
 		fmt.Println("Copy data to wasm memory.")
 	}
 	for i := 0; i < length; i++ {
+		m := i / DIM_1 // 2d-array logic
+		t := i % DIM_1
+
 		// vv import happens here vv
 		// int32/uint32 conversions can be omitted when using u32
 		// x := int64(inVec[i].Point.V)
-		x := inVec[i].Point.V
+		// x := inVec[i].Point.V
+		x := inMat[m].Points[t].V // 2d-array logic
 
 		// WE NEED TO TAKE CARE. 4xBYTE = 1x INT32
 		ia := ptr + int32(i)*typeSize
@@ -208,6 +240,7 @@ func RunWasmFunctionInPromQL(wasmName string, inVec Vector) Vector {
 	}
 
 	// modify input vector inVec to return it back. I hope this is okay...!
+	outVec := []Sample{}
 	for i := 0; i < length; i++ {
 		ia := ptr + int32(i)*typeSize
 		iz := ptr + int32(i)*typeSize + typeSize
@@ -216,10 +249,29 @@ func RunWasmFunctionInPromQL(wasmName string, inVec Vector) Vector {
 		x := Float64fromBytes(slc)
 		// x := int64(binary.LittleEndian.Uint64(slc)) // int32 conversion can be omitted when using u32
 
-		inVec[i].Point.V = float64(x)
+		// inVec[i].Point.V = float64(x)
+
+		m := i / DIM_1 // 2d-array logic
+		t := i % DIM_1
+		// currently, we only support aggregation into an array
+		if t == DIM_1-1 {
+			if m == 0 {
+				outVec = []Sample{} // initialize
+			}
+			series := inMat[m]
+			pt := series.Points[t]
+			pt.V = x
+			sample := Sample{
+				Metric: series.Metric,
+				Point:  pt,
+			}
+			outVec = append(outVec, sample)
+		}
+		// inMat[m].Points[t].V = x
 	}
 
-	return inVec
+	// return inVec
+	return outVec
 }
 
 // Plumbing for encoding/decoding

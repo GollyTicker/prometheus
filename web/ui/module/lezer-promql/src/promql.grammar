@@ -106,6 +106,7 @@ FunctionCall {
 
 FunctionIdentifier {
   Wasm |
+  Wasmr |
   AbsentOverTime |
   Absent |
   Abs |
@@ -333,8 +334,8 @@ NumberLiteral  {
 @external propSource promQLHighLight from "./highlight"
 
   // FunctionIdentifier definitions
-  // add here?
   Wasm { condFn<"wasm"> }
+  Wasmr { condFn<"wasmr"> }
   Abs { condFn<"abs"> }
   Absent { condFn<"absent"> }
   AbsentOverTime { condFn<"absent_over_time"> }

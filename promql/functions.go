@@ -1239,26 +1239,31 @@ func funcYear(vals []parser.Value, args parser.Expressions, enh *EvalNodeHelper)
 
 // === wasm(string wasm-function-name, Vector parser.ValueTypeVector) Vector ===
 func funcWasm(vals []parser.Value, args parser.Expressions, enh *EvalNodeHelper) Vector {
-
-	// todo. it would be interesting to next aggregate properly trough time and not have each timestamp evaluated separately.
-	// I've already prepared a bit. We should create a new "wasmr" function with the matrix type.
-
+	if debug {
+		fmt.Println("<<<<<<<<<<<<<<<<<<<<<<<< WASM")
+	}
 	name := stringFromArg(args[0])
 	inVec := vals[1].(Vector)
-	// fmt.Printf("value 1: %s of %s\n", vals[1], vals[1].Type())
+	out := RunWasmFunctionInPromQL(name, inVec, nil)
+	return out
+}
 
-	// fmt.Printf("Invoking wasm function %s\n", name)
-
-	outVec := RunWasmFunctionInPromQL(name, inVec)
-
-	// fmt.Println("Called function.")
-
-	return outVec
+// === wasmr(Scalar wasm-function-name-index, Matrix parser.ValueTypeMatrix) Vector ===
+func funcWasmR(vals []parser.Value, args parser.Expressions, enh *EvalNodeHelper) Vector {
+	if debug {
+		fmt.Println(">>>>>>>>>>>>>>>>>>>>>>>>>> WASMR")
+	}
+	n := int(vals[0].(Vector)[0].V)
+	name := wasmInstancesNameSorted[n]
+	inMat := vals[1].(Matrix)
+	out := RunWasmFunctionInPromQL(name, nil, inMat)
+	return out
 }
 
 // FunctionCalls is a list of all functions supported by PromQL, including their types.
 var FunctionCalls = map[string]FunctionCall{
 	"wasm":               funcWasm,
+	"wasmr":              funcWasmR,
 	"abs":                funcAbs,
 	"absent":             funcAbsent,
 	"absent_over_time":   funcAbsentOverTime,

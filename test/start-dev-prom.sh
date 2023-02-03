@@ -17,11 +17,13 @@ rm -f test/prom.{out,err}
   --storage.tsdb.path=test/data \
   >test/prom.out 2>test/prom.err &
 
-# Using NEGATE and x/2 wasm array function as demo!
-# working with arrays is slightly more complex with wasm:
-# https://radu-matei.com/pdf/practical-guide-to-wasm-memory.pdf
-QUERY='wasm("array",node_cpu_seconds_total)'
+# TEST QUERY
+# QUERY='wasm("array",node_cpu_seconds_total)'
 SECONDS_BEFORE=60
+
+QUERY='sum(wasmr(0,node_hwmon_temp_celsius[2m]))'
+SECONDS_BEFORE=300
+
 NOW="$(date +%s)"
 BEFORE="$(($NOW - $SECONDS_BEFORE))"
 
