@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"path"
 	"strings"
 
@@ -117,8 +118,8 @@ func RunWasmFunctionInPromQL(wasmName string, inVec Vector) Vector {
 	}
 
 	userType := wasmCall(wasmName, "user_level_type").(int32)
-	if userType != 8 {
-		panic("User user-level-type 8 = i64 supported atm!")
+	if userType != 10 {
+		panic("User user-level-type 8 = f64 supported atm!")
 	}
 	var typeSize int32 = 8
 
@@ -163,31 +164,40 @@ func RunWasmFunctionInPromQL(wasmName string, inVec Vector) Vector {
 			ia := ptr + int32(i)*typeSize
 			iz := ptr + int32(i)*typeSize + typeSize
 			slc := rawMemory[ia:iz]
-			x := int64(binary.LittleEndian.Uint64(slc)) // int32 conversion can be omitted when using u32
-			fmt.Printf("%d = %d from %v | %d to %d\n", i, x, slc, ia, iz)
+
+			// x := int64(binary.LittleEndian.Uint64(slc)) // int32 conversion can be omitted when using u32
+			x := Float64fromBytes(slc)
+
+			fmt.Printf("%d = %s from %v | %d to %d\n", i, x, slc, ia, iz)
 		}
 		fmt.Println("")
 	}
 
-	// printBufferAsUserTypedArray()
+	if debug {
+		printBufferAsUserTypedArray()
+	}
 
 	if debug {
 		fmt.Println("Copy data to wasm memory.")
 	}
 	for i := 0; i < length; i++ {
+		// vv import happens here vv
 		// int32/uint32 conversions can be omitted when using u32
-		x := int64(inVec[i].Point.V) // <-- import happens here
+		// x := int64(inVec[i].Point.V)
+		x := inVec[i].Point.V
+
 		// WE NEED TO TAKE CARE. 4xBYTE = 1x INT32
 		ia := ptr + int32(i)*typeSize
 		iz := ptr + int32(i)*typeSize + typeSize
 		slc := rawMemory[ia:iz]
-		binary.LittleEndian.PutUint64(slc, uint64(x))
-	}
 
-	// printBufferAsUserTypedArray()
+		copy(slc, Float64ToBytes(x))
+		// binary.LittleEndian.PutUint64(slc, uint64(x))
+	}
 
 	// apply work
 	if debug {
+		printBufferAsUserTypedArray()
 		fmt.Println("Apply work.")
 	}
 	wasmCall(wasmName, "apply")
@@ -202,9 +212,26 @@ func RunWasmFunctionInPromQL(wasmName string, inVec Vector) Vector {
 		ia := ptr + int32(i)*typeSize
 		iz := ptr + int32(i)*typeSize + typeSize
 		slc := rawMemory[ia:iz]
-		x := int64(binary.LittleEndian.Uint64(slc)) // int32 conversion can be omitted when using u32
+
+		x := Float64fromBytes(slc)
+		// x := int64(binary.LittleEndian.Uint64(slc)) // int32 conversion can be omitted when using u32
+
 		inVec[i].Point.V = float64(x)
 	}
 
 	return inVec
+}
+
+// Plumbing for encoding/decoding
+
+func Float64fromBytes(bytes []byte) float64 {
+	bits := binary.LittleEndian.Uint64(bytes) // WASM uses little-endian
+	return math.Float64frombits(bits)
+}
+
+func Float64ToBytes(float float64) []byte {
+	bits := math.Float64bits(float)
+	bytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bytes, bits) // WASM uses little-endian
+	return bytes
 }
