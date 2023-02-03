@@ -3,23 +3,42 @@ use std::convert::TryInto;
 use wasm_bindgen::prelude::*;
 
 // USING USER TYPE: i32
-const LENGTH: usize = 32;
-const USER_TYPE_SIZE: usize = 8;
-const WASM_MEMORY_BUFFER_SIZE: usize = USER_TYPE_SIZE * LENGTH; // 1x i32 = 4x u8 = 4x byte
+static mut TYPED_ARRAY_LENGTH: usize = 5; // actually used size
+const USER_TYPE_SIZE: usize = 8; // number of bytes used by the user-type. e.g. 8 for int64/f64
+
+// TODO. How do we decide upfront, how large this memory should be?
+// We cannot know this in advance. Should we pre-allocate?
+// Or should we rather have the host do the allocation and wasm just works on the data?
+const MAX_LENGTH: usize = 2048; // used for allocation
+const MAX_BUFFER_SIZE: usize = USER_TYPE_SIZE * MAX_LENGTH; // 1x i32 = 4x u8 = 4x byte
 
 // This memory is allocated inside WASM - and the host
 // will copy contents into it, so that wasm can work with it.
 // This syntax [T; N] means a fixed-size array
 // of elements of type T of length N.
-static mut WASM_MEMORY_BUFFER: [u8; WASM_MEMORY_BUFFER_SIZE] = [0; WASM_MEMORY_BUFFER_SIZE];
-// todo. we should use a byte-array as communication channel
-// and use an encoding/decoding on this side as well.
+static mut WASM_MEMORY_BUFFER: [u8; MAX_BUFFER_SIZE] = [0; MAX_BUFFER_SIZE];
 
 // Plumbing
 
 #[wasm_bindgen]
 pub fn length() -> i32 {
-    return LENGTH as i32;
+    unsafe {
+        return TYPED_ARRAY_LENGTH as i32;
+    }
+}
+
+#[wasm_bindgen]
+pub fn resize(new_length: i32) {
+    unsafe {
+        TYPED_ARRAY_LENGTH = new_length.try_into().unwrap();
+
+        // set all values therein to zero
+        for i in 0..(TYPED_ARRAY_LENGTH.into()) {
+            let ia: usize = i * USER_TYPE_SIZE;
+            let iz: usize = i * USER_TYPE_SIZE + USER_TYPE_SIZE;
+            WASM_MEMORY_BUFFER[ia..iz].copy_from_slice(&[0; USER_TYPE_SIZE])
+        }
+    }
 }
 
 // The pointer in wasm-memory-space to our above buffer.
@@ -31,6 +50,14 @@ pub fn get_wasm_memory_buffer_ptr() -> *const i32 {
         ptr = WASM_MEMORY_BUFFER.as_ptr() as *const i32;
     }
     return ptr;
+}
+
+#[wasm_bindgen]
+pub fn input_type() -> i32 {
+    // 0 = invalid
+    // 1 = instant-vector = vector
+    // 2 = range-vector = matrix
+    return 1;
 }
 
 #[wasm_bindgen]
@@ -52,7 +79,7 @@ pub fn user_level_type() -> i32 {
 #[wasm_bindgen]
 pub fn apply() {
     unsafe {
-        for i in 0..(LENGTH.into()) {
+        for i in 0..(TYPED_ARRAY_LENGTH.into()) {
             // read byte-array slice as user-level-type
             let ia: usize = i * USER_TYPE_SIZE;
             let iz: usize = i * USER_TYPE_SIZE + USER_TYPE_SIZE;

@@ -5,8 +5,7 @@ set -eu
   # https://developer.mozilla.org/en-US/docs/WebAssembly/Rust_to_wasm
   rm -rf pkg/*
   wasm-pack build --target web
-  wasm2wat pkg/array_bg.wasm -o array.wat
-
-  # todo. next steps. use this wasm module from inside go and try to use arrays there.
+  wasm2wat pkg/array_bg.wasm -o ../lib/array.wat
 )
+
 go build cmd/prometheus/main.go

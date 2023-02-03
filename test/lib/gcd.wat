@@ -1,4 +1,5 @@
 (module ;; adapted from wasmtime go package example
+  (type (;0;) (func (result i32)))
   (func $run (param i32 i32) (result i32)
     (local i32)
     block  ;; label = @1
@@ -23,6 +24,9 @@
     end
     local.get 2
   )
+  (func (;1;) (type 0) (result i32)
+    i32.const 1)
   (export "run" (func $run))
+  (export "input_type" (func 1))
 )
 
