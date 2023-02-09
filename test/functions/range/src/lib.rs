@@ -67,22 +67,14 @@ pub fn get_wasm_memory_buffer_ptr() -> *const i32 {
     ptr
 }
 
-// switch to decide which function to expose in this wasm module
-const WHICH_FUNCTION: u8 = 1;
-// 0 = x => -x/2 with type instant-vector => instant-vector
-// 1 = x => exponential_average_over_time(x, z) with type range-vector => instant-vector
+// x => exponential_average_over_time(x, z) with type range-vector => instant-vector
 // i.e. sum_{t=0 to t=N} pow(z, -(N-t)) * m[t] where m[t] is metric at time t for t = 0 (old) to t = N(new).
-
 #[wasm_bindgen]
 pub fn input_type() -> i32 {
     // 0 = invalid
     // 1 = instant-vector = vector
     // 2 = range-vector = matrix
-    if WHICH_FUNCTION == 0 {
-        1
-    } else {
-        2
-    }
+    2
 }
 
 #[wasm_bindgen]
@@ -105,55 +97,36 @@ pub fn user_level_type() -> i32 {
 // this one is going to modify the array and work on it.
 #[wasm_bindgen]
 pub fn apply() {
-    if WHICH_FUNCTION == 0 {
-        unsafe {
-            for i in 0..(TYPED_ARRAY_LENGTH.into()) {
-                // read byte-array slice as user-level-type
+    unsafe {
+        let z: f64 = f64::exp(1.0);
+        let alpha: f64 = 1.0 / z;
+
+        // Interpret 2d-array flattended. Then we need to apply our work.
+        // metric index
+        for m in 0..DIM_0 {
+            let mut exp_avg: f64 = 0.0;
+
+            // same metric, time index
+            for t in 0..DIM_1 {
+                // linear index
+                let i = m * DIM_0 + t;
+
                 let ia: usize = i * USER_TYPE_SIZE;
                 let iz: usize = i * USER_TYPE_SIZE + USER_TYPE_SIZE;
                 let bytes: [u8; USER_TYPE_SIZE] = WASM_MEMORY_BUFFER[ia..iz].try_into().unwrap();
                 let x = f64::from_le_bytes(bytes); // WASM Standard specifies litte-endian
 
-                let res = -x / 2.0; // <--- actual work!
+                // exponential average
+                if t == 0 {
+                    exp_avg = x;
+                } else {
+                    exp_avg = alpha * x + (1.0 - alpha) * exp_avg;
+                }
 
-                // // write user-evel-type as byte-array
-                let res_bytes: [u8; USER_TYPE_SIZE] = res.to_le_bytes();
-                WASM_MEMORY_BUFFER[ia..iz].copy_from_slice(&res_bytes);
-            }
-        }
-    } else {
-        unsafe {
-            let z: f64 = f64::exp(1.0);
-            let alpha: f64 = 1.0 / z;
-
-            // Interpret 2d-array flattended. Then we need to apply our work.
-            // metric index
-            for m in 0..DIM_0 {
-                let mut exp_avg: f64 = 0.0;
-
-                // same metric, time index
-                for t in 0..DIM_1 {
-                    // linear index
-                    let i = m * DIM_0 + t;
-
-                    let ia: usize = i * USER_TYPE_SIZE;
-                    let iz: usize = i * USER_TYPE_SIZE + USER_TYPE_SIZE;
-                    let bytes: [u8; USER_TYPE_SIZE] =
-                        WASM_MEMORY_BUFFER[ia..iz].try_into().unwrap();
-                    let x = f64::from_le_bytes(bytes); // WASM Standard specifies litte-endian
-
-                    // exponential average
-                    if t == 0 {
-                        exp_avg = x;
-                    } else {
-                        exp_avg = alpha * x + (1.0 - alpha) * exp_avg;
-                    }
-
-                    // after aggregation, we store the result at t=T-1.
-                    if t == DIM_1 - 1 {
-                        let res_bytes: [u8; USER_TYPE_SIZE] = exp_avg.to_le_bytes();
-                        WASM_MEMORY_BUFFER[ia..iz].copy_from_slice(&res_bytes);
-                    }
+                // after aggregation, we store the result at t=T-1.
+                if t == DIM_1 - 1 {
+                    let res_bytes: [u8; USER_TYPE_SIZE] = exp_avg.to_le_bytes();
+                    WASM_MEMORY_BUFFER[ia..iz].copy_from_slice(&res_bytes);
                 }
             }
         }

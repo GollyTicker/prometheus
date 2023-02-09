@@ -18,11 +18,11 @@ rm -f test/prom.{out,err}
   >test/prom.out 2>test/prom.err &
 
 # TEST QUERY
-# QUERY='wasm("array",node_cpu_seconds_total)'
+QUERY='wasm("array",node_cpu_seconds_total)'
 SECONDS_BEFORE=60
 
-QUERY='sum(wasmr(0,node_hwmon_temp_celsius[2m]))'
-SECONDS_BEFORE=300
+# QUERY='sum(wasmr(2,node_hwmon_temp_celsius[10m]))'
+# SECONDS_BEFORE=300
 
 NOW="$(date +%s)"
 BEFORE="$(($NOW - $SECONDS_BEFORE))"

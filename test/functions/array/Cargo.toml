@@ -1,5 +1,5 @@
 [package]
-name = "array"
+name = "wasm-fn"
 version = "0.1.0"
 authors = ["undefined"]
 description = "undefined"

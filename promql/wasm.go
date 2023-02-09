@@ -24,9 +24,9 @@ const debug = false
 type WasmInputType int32
 
 const (
-	invalid WasmInputType = 0
-	vector  WasmInputType = 1
-	matrix  WasmInputType = 2
+	invalidWasmInputType WasmInputType = 0
+	vectorWasmInputType  WasmInputType = 1
+	matrixWasmInputType  WasmInputType = 2
 )
 
 var wasmInstancesInputType = map[string]WasmInputType{}
@@ -111,9 +111,14 @@ func wasmCall(instanceName string, funcName string, args ...interface{}) interfa
 // Main
 
 // exactly one of inVec and inMat is provided. the other is nil.
+// todo. use generics to make this better refactored
 func RunWasmFunctionInPromQL(wasmName string, inVec Vector, inMat Matrix) Vector {
 	if debug {
-		fmt.Printf("Input vector: %s of length %d\n", len(inVec))
+		if inVec != nil {
+			fmt.Printf("Input vector length %d\n", len(inVec))
+		} else {
+			fmt.Printf("Input matrix %d x %d\n", len(inMat), inMat.TotalSamples()/len(inMat))
+		}
 	}
 
 	wasmInstance := wasmInstances[wasmName]
@@ -122,40 +127,50 @@ func RunWasmFunctionInPromQL(wasmName string, inVec Vector, inMat Matrix) Vector
 	}
 
 	userType := wasmCall(wasmName, "user_level_type").(int32)
-	if userType != 10 {
-		panic("User user-level-type 8 = f64 supported atm!")
+	if debug {
+		fmt.Printf("Got user-level-type: %d|n", userType)
 	}
-	var typeSize int32 = 8
+	if userType != 10 {
+		panic("Only user user-level-type 10 = f64 supported!")
+	}
+	var typeSize int32 = 8 // bytes
 
-	if wasmInstancesInputType[wasmName] != 2 {
-		panic("Only input type 2 is supported now!")
+	if inVec != nil && wasmInstancesInputType[wasmName] != vectorWasmInputType {
+		panic("Input type vector does not correspond to wasm input type " + string(wasmInstancesInputType[wasmName]))
+	} else if inMat != nil && wasmInstancesInputType[wasmName] != matrixWasmInputType {
+		panic("Input type matrix does not correspond to wasm input type " + string(wasmInstancesInputType[wasmName]))
 	}
 
 	if debug {
 		fmt.Printf("Setting array length to match input vector/matrix length/dimensions\n")
 	}
 
-	/* IF INPUT TYPE ARRAY */
-	// wasmCall(wasmName, "resize", len(inVec))
-	// length := int(wasmCall(wasmName, "length").(int32))
-	// if length != len(inVec) {
-	// 	panic(fmt.Errorf("Resize didn't work!"))
-	// }
-
-	/* IF INPUT TYPE MATRIX */
-	total := inMat.TotalSamples()
-	DIM_0 := inMat.Len()
-	DIM_1 := total / DIM_0
-	if debug {
-		fmt.Printf("Dimensions: %d x %d = %d", DIM_0, DIM_1, total)
-	}
-	if DIM_0*DIM_1 != total {
-		panic("Dimensions doesn't match properly.")
-	}
-	wasmCall(wasmName, "set_dimensions", DIM_0, DIM_1)
-	length := int(wasmCall(wasmName, "length").(int32))
-	if length != total {
-		panic(fmt.Errorf("Resize didn't work!"))
+	// resize wasm memory to be able to hold array/matrix
+	var length int
+	var total int
+	var DIM_0 int
+	var DIM_1 int
+	if inVec != nil { // array
+		wasmCall(wasmName, "resize", len(inVec))
+		length = int(wasmCall(wasmName, "length").(int32))
+		if length != len(inVec) {
+			panic("resize didn't work")
+		}
+	} else { // matrix
+		total = inMat.TotalSamples()
+		DIM_0 = inMat.Len()
+		DIM_1 = total / DIM_0
+		if debug {
+			fmt.Printf("Dimensions: %d x %d = %d", DIM_0, DIM_1, total)
+		}
+		if DIM_0*DIM_1 != total {
+			panic("Dimensions doesn't match properly.")
+		}
+		wasmCall(wasmName, "set_dimensions", DIM_0, DIM_1)
+		length = int(wasmCall(wasmName, "length").(int32))
+		if length != total {
+			panic("resize didn't work")
+		}
 	}
 
 	if debug {
@@ -168,7 +183,7 @@ func RunWasmFunctionInPromQL(wasmName string, inVec Vector, inMat Matrix) Vector
 	// Point.T is timestamp int64
 	// Point.V is value float64
 	if inVec != nil && inVec[0].Point.H != nil { // see docs of Point
-		panic("Historgrams not supported yet")
+		panic("Histograms not supported yet")
 	}
 
 	// ====================================================
@@ -193,10 +208,16 @@ func RunWasmFunctionInPromQL(wasmName string, inVec Vector, inMat Matrix) Vector
 			// x := int64(binary.LittleEndian.Uint64(slc)) // int32 conversion can be omitted when using u32
 			x := Float64fromBytes(slc)
 
-			m := i / DIM_1 // 2d-array logic
-			t := i % DIM_1
+			idxStr := ""
+			if inVec != nil {
+				idxStr = fmt.Sprintf("[%d]", i)
+			} else {
+				m := i / DIM_1 // 2d-array logic
+				t := i % DIM_1
+				idxStr = fmt.Sprintf("[%d][%d]", m, t)
+			}
 
-			fmt.Printf("[%d][%d] = [%d] = %f from %v | %d to %d\n", m, t, i, x, slc, ia, iz)
+			fmt.Printf("%s = [%d] = %f from %v | %d to %d\n", idxStr, i, x, slc, ia, iz)
 		}
 		fmt.Println("")
 	}
@@ -209,14 +230,16 @@ func RunWasmFunctionInPromQL(wasmName string, inVec Vector, inMat Matrix) Vector
 		fmt.Println("Copy data to wasm memory.")
 	}
 	for i := 0; i < length; i++ {
-		m := i / DIM_1 // 2d-array logic
-		t := i % DIM_1
 
-		// vv import happens here vv
-		// int32/uint32 conversions can be omitted when using u32
-		// x := int64(inVec[i].Point.V)
-		// x := inVec[i].Point.V
-		x := inMat[m].Points[t].V // 2d-array logic
+		x := 0.0
+		// import happens here
+		if inVec != nil {
+			x = inVec[i].Point.V
+		} else {
+			m := i / DIM_1 // 2d-array logic
+			t := i % DIM_1
+			x = inMat[m].Points[t].V
+		}
 
 		// WE NEED TO TAKE CARE. 4xBYTE = 1x INT32
 		ia := ptr + int32(i)*typeSize
@@ -249,29 +272,34 @@ func RunWasmFunctionInPromQL(wasmName string, inVec Vector, inMat Matrix) Vector
 		x := Float64fromBytes(slc)
 		// x := int64(binary.LittleEndian.Uint64(slc)) // int32 conversion can be omitted when using u32
 
-		// inVec[i].Point.V = float64(x)
-
-		m := i / DIM_1 // 2d-array logic
-		t := i % DIM_1
-		// currently, we only support aggregation into an array
-		if t == DIM_1-1 {
-			if m == 0 {
-				outVec = []Sample{} // initialize
+		if inVec != nil {
+			inVec[i].Point.V = x
+		} else {
+			// inMat[m].Points[t].V = x
+			m := i / DIM_1
+			t := i % DIM_1
+			// currently, we only support aggregation into an array. Result is assumed to be in each sub-arrays last element.
+			if t == DIM_1-1 {
+				if m == 0 {
+					outVec = []Sample{} // initialize
+				}
+				series := inMat[m]
+				pt := series.Points[t]
+				pt.V = x
+				sample := Sample{
+					Metric: series.Metric,
+					Point:  pt,
+				}
+				outVec = append(outVec, sample)
 			}
-			series := inMat[m]
-			pt := series.Points[t]
-			pt.V = x
-			sample := Sample{
-				Metric: series.Metric,
-				Point:  pt,
-			}
-			outVec = append(outVec, sample)
 		}
-		// inMat[m].Points[t].V = x
 	}
 
-	// return inVec
-	return outVec
+	if inVec != nil {
+		return inVec
+	} else {
+		return outVec
+	}
 }
 
 // Plumbing for encoding/decoding
