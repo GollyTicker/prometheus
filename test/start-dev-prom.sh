@@ -1,7 +1,6 @@
 #!/bin/bash
 
 set -eu
-
 (
   cd test
   docker compose down
@@ -16,6 +15,22 @@ rm -f test/prom.{out,err}
   --config.file=test/prometheus.yml \
   --storage.tsdb.path=test/data \
   >test/prom.out 2>test/prom.err &
+
+# attempt to use docker
+# the binary doesn'T quite work. we need to build the docker image somehow differently
+# docker rm -f test-prom || true
+# rm -f test/prom.{out,err} || true
+# docker run --name test-prom \
+#   -v $PWD/test/data:/prometheus/data \
+#   -v $PWD/test/prometheus.yml:/prometheus.yml \
+#   -v $PWD/main:/bin/prometheus \
+#   -p 9090:9090 \
+#   --privileged -it \
+#   --entrypoint sh "prom/prometheus-linux-amd64:latest"
+# # --entrypoint sh
+# # -c "ls -lah /bin/prometheus && id && chown -v nobody /bin/prometheus && /bin/prometheus"
+# # # -u "$(id -u):$(id -g)" \
+# docker logs -f test-prom >test/prom.out 2>test/prom.err &
 
 # TEST QUERY
 QUERY='wasm("array",node_cpu_seconds_total)'
