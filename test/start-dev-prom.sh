@@ -16,9 +16,11 @@ rm -f test/prom.{out,err}
   --storage.tsdb.path=test/data-remote \
   >test/prom.out 2>test/prom.err &
 
-# to be able to forecast storj egress/ingress, we need to be able to use
+# todo. to be able to forecast storj egress/ingress, we need to be able to use
 # wasmr range to range function within:
 # sum by (type) (rate(storj_sat_summary{type=~".*gress.*"}[3h]))
+# but this will be difficult, as the engine assumes, that functions return
+# instant-vectors and not ranges...
 
 # attempt to use docker
 # the binary doesn'T quite work. we need to build the docker image somehow differently
