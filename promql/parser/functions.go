@@ -35,6 +35,12 @@ var Functions = map[string]*Function{
 		ArgTypes:   []ValueType{ValueTypeScalar, ValueTypeMatrix},
 		ReturnType: ValueTypeVector,
 	},
+	"wasmrs": {
+		Name: "wasmrs",
+		// we want to use string instead of scalar, but engine.go doesnt allow
+		ArgTypes:   []ValueType{ValueTypeScalar, ValueTypeMatrix, ValueTypeScalar, ValueTypeScalar, ValueTypeScalar},
+		ReturnType: ValueTypeVector,
+	},
 	"abs": {
 		Name:       "abs",
 		ArgTypes:   []ValueType{ValueTypeVector},

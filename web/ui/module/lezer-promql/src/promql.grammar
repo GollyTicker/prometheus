@@ -107,6 +107,7 @@ FunctionCall {
 FunctionIdentifier {
   Wasm |
   Wasmr |
+  Wasmrs |
   AbsentOverTime |
   Absent |
   Abs |
@@ -336,6 +337,7 @@ NumberLiteral  {
   // FunctionIdentifier definitions
   Wasm { condFn<"wasm"> }
   Wasmr { condFn<"wasmr"> }
+  Wasmrs { condFn<"wasmrs"> }
   Abs { condFn<"abs"> }
   Absent { condFn<"absent"> }
   AbsentOverTime { condFn<"absent_over_time"> }

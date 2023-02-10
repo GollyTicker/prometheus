@@ -77,6 +77,13 @@ pub fn input_type() -> i32 {
     2
 }
 
+const SCALAR_ARGS_COUNT: usize = 0;
+#[wasm_bindgen]
+pub fn scalar_args_count() -> i32 {
+    // number of expected scalar arguments during invocation
+    SCALAR_ARGS_COUNT.try_into().unwrap()
+}
+
 #[wasm_bindgen]
 pub fn user_level_type() -> i32 {
     // 0 = invalid

@@ -18,6 +18,7 @@ var wasmEngine *wasmtime.Engine
 var wasmStore *wasmtime.Store
 var wasmInstances = map[string]*wasmtime.Instance{}
 var wasmInstancesNameSorted = []string{}
+var wasmInstancesScalarArgsCount = map[string]int{}
 
 const debug = false
 
@@ -62,6 +63,8 @@ func EnsureWasmSetup() error {
 }
 
 func loadWasmModuleFromFilePath(name string, filePath string) (err error) {
+	fmt.Printf("Loading wasm %s\n", name)
+
 	module, err := wasmtime.NewModuleFromFile(wasmEngine, filePath)
 	if err != nil {
 		return
@@ -82,7 +85,16 @@ func loadWasmModuleFromFilePath(name string, filePath string) (err error) {
 		return
 	}
 
-	fmt.Printf("Wasm instance %s (n=%d) uses type %d\n", name, n, wasmInstancesInputType[name])
+	if wasmInstancesInputType[name] == matrixWasmInputType {
+		scalarArgsCount, err := wasmCallWithError(name, "scalar_args_count")
+		if err != nil {
+			return err
+		}
+		wasmInstancesScalarArgsCount[name] = int(scalarArgsCount.(int32))
+	}
+
+	fmt.Printf("Wasm instance %s (n=%d) uses type %d, (scalar args = %d)\n",
+		name, n, wasmInstancesInputType[name], wasmInstancesScalarArgsCount[name])
 
 	if inputType == 0 {
 		return fmt.Errorf("wasm Instance: Input type should not be 0 (invalid). Name: " + name)
@@ -112,8 +124,9 @@ func wasmCall(instanceName string, funcName string, args ...interface{}) interfa
 
 // exactly one of inVec and inMat is provided. the other is nil.
 // todo. use generics to make this better refactored
-func RunWasmFunctionInPromQL(wasmName string, inVec Vector, inMat Matrix) Vector {
+func RunWasmFunctionInPromQL(wasmName string, inVec Vector, inMat Matrix, scalarArgs []float64) Vector {
 	if debug {
+		fmt.Printf("Preparing wasm function %s\n", wasmName)
 		if inVec != nil {
 			fmt.Printf("Input vector length %d\n", len(inVec))
 		} else {
@@ -128,7 +141,7 @@ func RunWasmFunctionInPromQL(wasmName string, inVec Vector, inMat Matrix) Vector
 
 	userType := wasmCall(wasmName, "user_level_type").(int32)
 	if debug {
-		fmt.Printf("Got user-level-type: %d|n", userType)
+		fmt.Printf("Got user-level-type: %d\n", userType)
 	}
 	if userType != 10 {
 		panic("Only user user-level-type 10 = f64 supported!")
@@ -139,6 +152,14 @@ func RunWasmFunctionInPromQL(wasmName string, inVec Vector, inMat Matrix) Vector
 		panic("Input type vector does not correspond to wasm input type " + string(wasmInstancesInputType[wasmName]))
 	} else if inMat != nil && wasmInstancesInputType[wasmName] != matrixWasmInputType {
 		panic("Input type matrix does not correspond to wasm input type " + string(wasmInstancesInputType[wasmName]))
+	}
+
+	if inMat != nil && wasmInstancesScalarArgsCount[wasmName] > len(scalarArgs) {
+		panic("Wasm function requires at least " +
+			string(wasmInstancesScalarArgsCount[wasmName]) +
+			" scalar args, but only " +
+			string(len(scalarArgs)) +
+			" were provided.")
 	}
 
 	if debug {
@@ -161,7 +182,7 @@ func RunWasmFunctionInPromQL(wasmName string, inVec Vector, inMat Matrix) Vector
 		DIM_0 = inMat.Len()
 		DIM_1 = total / DIM_0
 		if debug {
-			fmt.Printf("Dimensions: %d x %d = %d", DIM_0, DIM_1, total)
+			fmt.Printf("Dimensions: %d x %d = %d\n", DIM_0, DIM_1, total)
 		}
 		if DIM_0*DIM_1 != total {
 			panic("Dimensions doesn't match properly.")
@@ -171,6 +192,13 @@ func RunWasmFunctionInPromQL(wasmName string, inVec Vector, inMat Matrix) Vector
 		if length != total {
 			panic("resize didn't work")
 		}
+	}
+
+	if debug {
+		fmt.Printf("Setting scalar args: %v\n", scalarArgs)
+	}
+	for i, arg := range scalarArgs {
+		wasmCall(wasmName, "set_scalar_arg", i, arg)
 	}
 
 	if debug {

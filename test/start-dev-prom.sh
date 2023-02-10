@@ -42,8 +42,14 @@ rm -f test/prom.{out,err}
 QUERY='wasm("array",node_cpu_seconds_total)'
 SECONDS_BEFORE=60
 
-# QUERY='sum(wasmr(2,node_hwmon_temp_celsius[10m]))'
+# QUERY='avg(wasmr(3,node_hwmon_temp_celsius[10m]))'
 # SECONDS_BEFORE=300
+
+# 'avg(wasmrs(2,node_hwmon_temp_celsius[10m],1,0,0))' is equivalent to avg_over_time!
+# <=> avg(avg_over_time(node_hwmon_temp_celsius[10m]))
+
+QUERY='avg(wasmrs(2,node_hwmon_temp_celsius[10m],1,0,0))'
+SECONDS_BEFORE=300
 
 NOW="$(date +%s)"
 BEFORE="$(($NOW - $SECONDS_BEFORE))"

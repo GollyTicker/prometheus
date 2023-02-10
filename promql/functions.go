@@ -1244,7 +1244,7 @@ func funcWasm(vals []parser.Value, args parser.Expressions, enh *EvalNodeHelper)
 	}
 	name := stringFromArg(args[0])
 	inVec := vals[1].(Vector)
-	out := RunWasmFunctionInPromQL(name, inVec, nil)
+	out := RunWasmFunctionInPromQL(name, inVec, nil, nil)
 	return out
 }
 
@@ -1256,7 +1256,23 @@ func funcWasmR(vals []parser.Value, args parser.Expressions, enh *EvalNodeHelper
 	n := int(vals[0].(Vector)[0].V)
 	name := wasmInstancesNameSorted[n]
 	inMat := vals[1].(Matrix)
-	out := RunWasmFunctionInPromQL(name, nil, inMat)
+	out := RunWasmFunctionInPromQL(name, nil, inMat, nil)
+	return out
+}
+
+// === wasmrs(Scalar wasm-function-name-index, Matrix parser.ValueTypeMatrix, Scalar arg1, Scalar arg2, Scalar arg3) Vector ===
+func funcWasmRS(vals []parser.Value, args parser.Expressions, enh *EvalNodeHelper) Vector {
+	if debug {
+		fmt.Println(">>>>>>>>>>>>>> S >>>>>>>>> WASMRS")
+		fmt.Printf("vals: %v\n", vals)
+	}
+	n := int(vals[0].(Vector)[0].V)
+	name := wasmInstancesNameSorted[n]
+	inMat := vals[1].(Matrix)
+	arg1 := vals[2].(Vector)[0].V
+	arg2 := vals[3].(Vector)[0].V
+	arg3 := vals[4].(Vector)[0].V
+	out := RunWasmFunctionInPromQL(name, nil, inMat, []float64{arg1, arg2, arg3})
 	return out
 }
 
@@ -1264,6 +1280,7 @@ func funcWasmR(vals []parser.Value, args parser.Expressions, enh *EvalNodeHelper
 var FunctionCalls = map[string]FunctionCall{
 	"wasm":               funcWasm,
 	"wasmr":              funcWasmR,
+	"wasmrs":             funcWasmRS,
 	"abs":                funcAbs,
 	"absent":             funcAbsent,
 	"absent_over_time":   funcAbsentOverTime,
