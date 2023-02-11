@@ -21,6 +21,7 @@ var wasmInstancesNameSorted = []string{}
 var wasmInstancesScalarArgsCount = map[string]int{}
 
 const debug = false
+const traceLog = false
 
 type WasmInputType int32
 
@@ -250,7 +251,7 @@ func RunWasmFunctionInPromQL(wasmName string, inVec Vector, inMat Matrix, scalar
 		fmt.Println("")
 	}
 
-	if debug {
+	if debug && traceLog {
 		printBufferAsUserTypedArray()
 	}
 
@@ -279,13 +280,13 @@ func RunWasmFunctionInPromQL(wasmName string, inVec Vector, inMat Matrix, scalar
 	}
 
 	// apply work
-	if debug {
+	if debug && traceLog {
 		printBufferAsUserTypedArray()
 		fmt.Println("Apply work.")
 	}
 	wasmCall(wasmName, "apply")
 
-	if debug {
+	if debug && traceLog {
 		fmt.Println("Results:")
 		printBufferAsUserTypedArray()
 	}

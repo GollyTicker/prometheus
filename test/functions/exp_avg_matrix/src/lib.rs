@@ -1,4 +1,4 @@
-use std::{cmp::max, convert::TryInto, ops::Mul};
+use std::{convert::TryInto, ops::Mul};
 
 use nalgebra::{DMatrix, DVector};
 use wasm_bindgen::prelude::*;
@@ -119,17 +119,13 @@ pub fn apply() {
     unsafe {
         let matrix = linear_memory_to_matrix();
 
-        let delta = DMatrix::from_fn(DIM_0, DIM_1, |m: usize, t: usize| {
-            matrix[(m, t)] - matrix[(m, max(0, t / 2))]
-            // we want to use t-1 instead of t/2 to compute the delta. but that traps
-        });
         let mut exp_average_factors: DVector<f64> = DVector::from_fn(DIM_1, |t: usize, _| {
             let oldness: i32 = (DIM_1 - 1 - t).try_into().unwrap();
             ALPHA.powi(oldness)
         });
         exp_average_factors.unscale_mut(exp_average_factors.sum());
 
-        let result: DVector<f64> = delta.mul(exp_average_factors);
+        let result: DVector<f64> = matrix.mul(exp_average_factors);
 
         write_result_vector(result);
     }

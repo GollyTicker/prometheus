@@ -16,6 +16,8 @@ rm -f test/prom.{out,err}
   --storage.tsdb.path=test/data-remote \
   >test/prom.out 2>test/prom.err &
 
+STEP=10
+
 # todo. to be able to forecast storj egress/ingress, we need to be able to use
 # wasmr range to range function within:
 # sum by (type) (rate(storj_sat_summary{type=~".*gress.*"}[3h]))
@@ -42,24 +44,30 @@ rm -f test/prom.{out,err}
 QUERY='wasm("array",node_cpu_seconds_total)'
 SECONDS_BEFORE=60
 
-# QUERY='avg(wasmr(3,node_hwmon_temp_celsius[10m]))'
-# SECONDS_BEFORE=300
-
-# 'avg(wasmrs(2,node_hwmon_temp_celsius[10m],1,0,0))' is equivalent to avg_over_time!
-# <=> avg(avg_over_time(node_hwmon_temp_celsius[10m]))
-
-QUERY='avg(wasmrs(2,node_hwmon_temp_celsius[10m],1,0,0))'
+# exponential average without nalgebra library
+QUERY='avg(wasmr(4,node_hwmon_temp_celsius[10m]))'
 SECONDS_BEFORE=300
+
+# exponential average with nalgebra library
+# 'avg(wasmrs(1,node_hwmon_temp_celsius[10m],1,0,0))' is equivalent to avg_over_time!
+# <=> avg(avg_over_time(node_hwmon_temp_celsius[10m]))
 
 NOW="$(date +%s)"
 BEFORE="$(($NOW - $SECONDS_BEFORE))"
+
+# predict periodic
+# thing to predict: sum(rate(    storj_total_bandwidth[2h]   )) / 1000
+QUERY='sum(  wasmrs(3,  storj_total_bandwidth[2h]  ,1,0,0)  ) / 1000'
+BEFORE=1675456072
+NOW=1676060872
+STEP=2401
 
 echo "Open prometheus via http://localhost:9090. Try query '$QUERY' with ${SECONDS_BEFORE}s interval!"
 
 sleep 1s
 echo "Sending test query:"
 
-curl -s --fail "http://localhost:9090/api/v1/query_range?start=$BEFORE&end=$NOW&step=10" \
+curl -s --fail "http://localhost:9090/api/v1/query_range?start=$BEFORE&end=$NOW&step=$STEP" \
   --data-urlencode "query=$QUERY" \
   -H 'Accept: application/json' \
   -H 'Cache-Control: no-cache' |
